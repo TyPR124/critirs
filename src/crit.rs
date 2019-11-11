@@ -96,12 +96,19 @@ mod tests {
     use crate::CriticalSection;
     use std::thread;
 
+    /*
+        🎶 99 Mutating Threads on the Wall 🎶
+              🎶 99 Mutating Threads 🎶
+         🎶 Take One Down - Unwind it Now 🎶
+        🎶 98 Mutating Threads on the Wall 🎶
+    */
+
     #[test]
     fn threads_on_the_wall() {
         static mut X: usize = 0;
-        let mut handles = Vec::with_capacity(100);
+        let mut handles = Vec::with_capacity(99);
         let critical = CriticalSection::new();
-        for i in 0..100 {
+        for i in 0..99 {
             let crit = critical.clone();
             handles.push(thread::spawn(move || {
                 let entered = crit.enter();
@@ -123,7 +130,7 @@ mod tests {
                 handle.join().unwrap();
             }
         }
-        assert_eq!(99, unsafe { X });
+        assert_eq!(98, unsafe { X });
     }
 
     #[test]

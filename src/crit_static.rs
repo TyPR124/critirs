@@ -217,8 +217,8 @@ mod tests {
     fn threads_on_the_wall() {
         static mut X: usize = 0;
         static CRITICAL: CriticalStatic = CriticalStatic::new();
-        let mut handles = Vec::with_capacity(100);
-        for i in 0..100 {
+        let mut handles = Vec::with_capacity(99);
+        for i in 0..99 {
             handles.push(thread::spawn(move || {
                 let entered = CRITICAL.enter();
                 if i == 0 {
@@ -239,7 +239,7 @@ mod tests {
                 handle.join().unwrap();
             }
         }
-        assert_eq!(99, unsafe { X });
+        assert_eq!(98, unsafe { X });
     }
 
     #[test]
@@ -247,8 +247,8 @@ mod tests {
         static mut X: usize = 0;
         static CRITICAL: CriticalStatic = CriticalStatic::new();
         let crit_ref = CRITICAL.get_ref();
-        let mut handles = Vec::with_capacity(100);
-        for i in 0..100 {
+        let mut handles = Vec::with_capacity(99);
+        for i in 0..99 {
             handles.push(thread::spawn(move || {
                 let entered = crit_ref.enter();
                 if i == 0 {
@@ -269,6 +269,6 @@ mod tests {
                 handle.join().unwrap();
             }
         }
-        assert_eq!(99, unsafe { X });
+        assert_eq!(98, unsafe { X });
     }
 }
