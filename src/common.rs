@@ -1,17 +1,8 @@
-use crate::wrapper::{
-    leave_cs,
-    set_cs_spin_count,
-};
+use crate::wrapper::{leave_cs, set_cs_spin_count};
 
 use static_assertions::assert_not_impl_all;
 
-use winapi::um::{
-    minwinbase::CRITICAL_SECTION,
-    // synchapi::{
-    //     LeaveCriticalSection,
-    //     SetCriticalSectionSpinCount,
-    // },
-};
+use winapi::um::minwinbase::CRITICAL_SECTION;
 
 pub(crate) const CRIT_ZEROED: CRITICAL_SECTION = CRITICAL_SECTION {
     DebugInfo: 0 as *mut _,
@@ -19,13 +10,13 @@ pub(crate) const CRIT_ZEROED: CRITICAL_SECTION = CRITICAL_SECTION {
     LockSemaphore: 0 as *mut _,
     OwningThread: 0 as *mut _,
     RecursionCount: 0,
-    SpinCount: 0
+    SpinCount: 0,
 };
 
 pub struct EnteredCritical<'c>(&'c CRITICAL_SECTION);
 
-// Safety: it is not okay to enter from one thread and leave from another.
-assert_not_impl_all!(EnteredCritical: Send, Sync);
+// Safety: it is not okay to enter from one thread and leave from another, or leave twice.
+assert_not_impl_all!(EnteredCritical: Send, Sync, Copy, Clone);
 
 impl<'c> EnteredCritical<'c> {
     pub(crate) fn new(ptr: &'c CRITICAL_SECTION) -> Self {
@@ -49,8 +40,8 @@ impl EnteredCritical<'_> {
 
 impl Drop for EnteredCritical<'_> {
     fn drop(&mut self) {
-        unsafe {
-            leave_cs(self.lpCriticalSection())
-        }
+        // Safety: entire point of this type is to leave exactly once.
+        // Cannot fail, no return value.
+        unsafe { leave_cs(self.lpCriticalSection()) }
     }
 }

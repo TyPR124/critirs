@@ -9,26 +9,10 @@ use crate::common::CRIT_ZEROED;
 use crate::EnteredCritical;
 
 use crate::wrapper::{
-    init_cs,
-    init_cs_with_spin_count,
-    enter_cs,
-    try_enter_cs,
-    delete_cs,
-    set_cs_spin_count,
+    delete_cs, enter_cs, init_cs, init_cs_with_spin_count, set_cs_spin_count, try_enter_cs,
 };
 
-use winapi::um::{
-    minwinbase::CRITICAL_SECTION,
-    // synchapi::{
-        // InitializeCriticalSection,
-        // InitializeCriticalSectionAndSpinCount,
-        // DeleteCriticalSection,
-        // EnterCriticalSection,
-        // TryEnterCriticalSection,
-        // LeaveCriticalSection,
-        // SetCriticalSectionSpinCount,
-    // },
-};
+use winapi::um::minwinbase::CRITICAL_SECTION;
 
 use core::{
     cell::UnsafeCell,
@@ -43,7 +27,7 @@ const INITIALIZED: usize = 2;
 /// Deleting a CriticalStatic is unsafe, and you must either ensure it gets re-initialized prior to
 /// being used elsewhere, or else never used again. The remaining operations, enter, try_enter,
 /// leave, and set_spin_count, are all safe to use.
-/// 
+///
 /// Calling get_ref() will return a value that can bypass an initialization check for all
 /// operations.
 pub struct CriticalStatic {
@@ -65,7 +49,7 @@ pub struct CriticalStaticRef<State>(&'static CRITICAL_SECTION, State);
 pub struct Init;
 pub struct Uninit;
 
-// Safety: Send and Sync are safe ONLY becuase these types work with &'static CRITICAL_SECTION.
+// Safety: Send and Sync are safe becuase these types work with &'static CRITICAL_SECTION.
 unsafe impl Sync for CriticalStatic {}
 unsafe impl<State> Send for CriticalStaticRef<State> {}
 unsafe impl<State> Sync for CriticalStaticRef<State> {}
@@ -76,7 +60,7 @@ impl CriticalStatic {
         Self {
             init_spin_count: None,
             init: AtomicUsize::new(UNINITIALIZED),
-            inner: UnsafeCell::new(CRIT_ZEROED)
+            inner: UnsafeCell::new(CRIT_ZEROED),
         }
     }
     /// Creates a new CriticalStatic which will be initialized with the provided spin_count.
@@ -84,23 +68,37 @@ impl CriticalStatic {
         Self {
             init_spin_count: Some(spin_count),
             init: AtomicUsize::new(UNINITIALIZED),
-            inner: UnsafeCell::new(CRIT_ZEROED)
+            inner: UnsafeCell::new(CRIT_ZEROED),
         }
     }
     fn init_once(&'static self) {
-        if INITIALIZED == self.init.load(Ordering::Relaxed) { return }
-        else if self.init.compare_exchange(UNINITIALIZED, INITIALIZING, Ordering::Acquire, Ordering::Relaxed).is_ok() {
+        if INITIALIZED == self.init.load(Ordering::Relaxed) {
+            return;
+        } else if self
+            .init
+            .compare_exchange(
+                UNINITIALIZED,
+                INITIALIZING,
+                Ordering::Acquire,
+                Ordering::Relaxed,
+            )
+            .is_ok()
+        {
             if let Some(spin_count) = self.init_spin_count {
-                unsafe { init_cs_with_spin_count(self.lpCriticalSection(), spin_count); }
+                unsafe {
+                    init_cs_with_spin_count(self.lpCriticalSection(), spin_count);
+                }
             } else {
-                unsafe { init_cs(self.lpCriticalSection()); }
+                unsafe {
+                    init_cs(self.lpCriticalSection());
+                }
             }
             self.init.store(INITIALIZED, Ordering::Release);
-            return
+            return;
         } else {
             // It won't take long, just spin
             while INITIALIZED != self.init.load(Ordering::Relaxed) {}
-            return
+            return;
         }
     }
     #[allow(non_snake_case)]
@@ -111,8 +109,8 @@ impl CriticalStatic {
     /// calling thread is already in the Critical Section.
     pub fn enter(&'static self) -> EnteredCritical<'static> {
         self.init_once();
-        // Safety: cannot fail, no return value. Naturally thread-safe.
-        unsafe { 
+        // Safety: might panic, no return value. Naturally thread-safe.
+        unsafe {
             enter_cs(self.lpCriticalSection());
             EnteredCritical::new(&*self.lpCriticalSection())
         }
@@ -122,12 +120,14 @@ impl CriticalStatic {
     /// Section.
     pub fn try_enter(&'static self) -> Option<EnteredCritical<'static>> {
         self.init_once();
-        // Safety: returns non-zero if we are in critical section when call FFI call returns.
-        // FFI call is naturally thread-safe.
-        unsafe { match try_enter_cs(self.lpCriticalSection()) {
-            0 => None,
-            _ => Some(EnteredCritical::new(&*self.lpCriticalSection()))
-        }}
+        // Safety: returns non-zero if we are in critical section when call returns.
+        // Naturally thread-safe.
+        unsafe {
+            match try_enter_cs(self.lpCriticalSection()) {
+                0 => None,
+                _ => Some(EnteredCritical::new(&*self.lpCriticalSection())),
+            }
+        }
     }
     /// Sets the spin count of this Critical Section, and returns the
     /// old value
@@ -143,14 +143,11 @@ impl CriticalStatic {
         CriticalStaticRef(
             // Safety: we are init and have &'static, so this is fine
             unsafe { &*self.lpCriticalSection() },
-            Init
+            Init,
         )
     }
     pub unsafe fn assume_uninit(&'static self) -> CriticalStaticRef<Uninit> {
-        CriticalStaticRef(
-            &*self.lpCriticalSection(),
-            Uninit
-        )
+        CriticalStaticRef(&*self.lpCriticalSection(), Uninit)
     }
     pub unsafe fn delete(&'static self) -> CriticalStaticRef<Uninit> {
         delete_cs(self.lpCriticalSection());
@@ -174,27 +171,31 @@ impl<State> CriticalStaticRef<State> {
 
 impl CriticalStaticRef<Uninit> {
     pub fn init(self) -> CriticalStaticRef<Init> {
-        unsafe { init_cs(self.lpCriticalSection()); }
+        unsafe {
+            init_cs(self.lpCriticalSection());
+        }
         CriticalStaticRef(self.0, Init)
     }
     pub fn init_with_spin_count(self, spin_count: u32) -> CriticalStaticRef<Init> {
-        unsafe { init_cs_with_spin_count(self.lpCriticalSection(), spin_count); }
+        unsafe {
+            init_cs_with_spin_count(self.lpCriticalSection(), spin_count);
+        }
         CriticalStaticRef(self.0, Init)
     }
 }
 
 impl CriticalStaticRef<Init> {
     pub fn enter(&self) -> EnteredCritical<'static> {
-        // Safety: cannot fail, no return value. Naturally thread-safe.
+        // Safety: might panic, no return value. Naturally thread-safe.
         unsafe { enter_cs(self.lpCriticalSection()) }
         EnteredCritical::new(self.0)
     }
     pub fn try_enter(&self) -> Option<EnteredCritical> {
-        // Safety: returns non-zero if we are in critical section when call FFI call returns.
-        // FFI call is naturally thread-safe.
+        // Safety: returns non-zero if we are in critical section when call returns.
+        // Naturally thread-safe.
         match unsafe { try_enter_cs(self.lpCriticalSection()) } {
             0 => None,
-            _ => Some(EnteredCritical::new(self.0))
+            _ => Some(EnteredCritical::new(self.0)),
         }
     }
     pub fn set_spin_count(&self, spin_count: u32) -> u32 {
@@ -218,12 +219,16 @@ mod tests {
         static CRITICAL: CriticalStatic = CriticalStatic::new();
         let mut handles = Vec::with_capacity(100);
         for i in 0..100 {
-            handles.push(thread::spawn(move|| {
+            handles.push(thread::spawn(move || {
                 let entered = CRITICAL.enter();
-                if i == 0 { panic!("Take one down") }
+                if i == 0 {
+                    panic!("Take one down")
+                }
                 let x = 1 + unsafe { X };
                 thread::yield_now();
-                unsafe { X = x; }
+                unsafe {
+                    X = x;
+                }
                 entered.leave();
             }));
         }
@@ -244,12 +249,16 @@ mod tests {
         let crit_ref = CRITICAL.get_ref();
         let mut handles = Vec::with_capacity(100);
         for i in 0..100 {
-            handles.push(thread::spawn(move|| {
+            handles.push(thread::spawn(move || {
                 let entered = crit_ref.enter();
-                if i == 0 { panic!("Take one down") }
+                if i == 0 {
+                    panic!("Take one down")
+                }
                 let x = 1 + unsafe { X };
                 thread::yield_now();
-                unsafe { X = x; }
+                unsafe {
+                    X = x;
+                }
                 entered.leave();
             }));
         }

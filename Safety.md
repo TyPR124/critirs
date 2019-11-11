@@ -96,7 +96,7 @@ CriticalStatic - Initializing the object manually is considered unsafe and is no
 
 ### Problem
 
-CRITICAL_SECTIONS can be re-entered on the same thread without blocking. A thread will need to call Leave the same number of times it called Enter or TryEnter successfully. By itself, this is not a safety issue, however when paired with the [Thread Termination](#Thread%20Termination) problem, this must be considered for safety.
+CRITICAL_SECTIONS can be re-entered on the same thread without blocking. A thread will need to call Leave the same number of times it called Enter or TryEnter successfully. By itself, this is not curretnly a safety issue, however when paired with the [Thread Termination](#Thread%20Termination) problem, this must be considered for safety. This will be a safety consideration for Mutex.
 
 ### Solution
 
@@ -114,7 +114,7 @@ A Rust thread may terminate early via panic. Panic may either unwind the stack w
 
 The EnteredSection returned from all successful Enter or TryEnter calls automatically calls Leave. It will get dropped during unwind, ensuring no thread terminates without leaving the critical section.
 
-TODO: Track poisoning of CriticalSection, CriticalStatic.
+TODO: Track poisoning of CriticalSection, CriticalStatic + remember CriticalStatus is susceptable to poison in init_once.
 
 ## Deletion
 
