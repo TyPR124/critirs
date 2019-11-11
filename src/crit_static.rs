@@ -72,7 +72,7 @@ impl CriticalStatic {
         }
     }
     fn init_once(&'static self) {
-        if INITIALIZED == self.init.load(Ordering::Relaxed) {
+        if INITIALIZED == self.init.load(Ordering::Acquire) {
             return;
         } else if self
             .init
@@ -97,7 +97,7 @@ impl CriticalStatic {
             return;
         } else {
             // It won't take long, just spin
-            while INITIALIZED != self.init.load(Ordering::Relaxed) {}
+            while INITIALIZED != self.init.load(Ordering::Acquire) {}
             return;
         }
     }
