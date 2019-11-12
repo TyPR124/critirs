@@ -94,7 +94,7 @@ Reinitializing a CRITICAL_SECTION that has not been deleted is undefined behavio
 
 CriticalSection - The object is initialized once at creation and never again.
 
-CriticalStatic - Initializing the object manually is considered unsafe and is not necessary unless delete was called. Delete is also unsafe. In the case of CriticalStaticRef\<Init\>, unsafe is required to delete which creates a non-Copy/Clone CriticalStaticRef\<Uninit\> which can be safely re-initialized exactly once.
+CriticalStatic - It is not possible to safely delete a CriticalStatic, and initialization happens exactly once automatically.
 
 ## Reentrancy
 
