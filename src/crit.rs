@@ -1,4 +1,4 @@
-use crate::common::CRIT_ZEROED;
+use crate::common::{PoisonableCriticalSection, POISONABLE_ZEROED};
 use crate::EnteredCritical;
 
 use crate::wrapper::{
@@ -14,7 +14,7 @@ use std::{
 
 #[derive(Clone)]
 pub struct CriticalSection {
-    inner: Arc<CRITICAL_SECTION>,
+    inner: Arc<PoisonableCriticalSection>,
 }
 
 // Safety: *CRITICAL_SECTION aka lpCriticalSection (effectivity provided by Arc) is Send.
@@ -24,15 +24,15 @@ unsafe impl Sync for CriticalSection {}
 
 impl PartialEq for CriticalSection {
     fn eq(&self, other: &Self) -> bool {
-        &*self.inner as *const CRITICAL_SECTION == &*other.inner as *const _
+        &*self.inner as *const PoisonableCriticalSection == &*other.inner as *const _
     }
 }
 impl Eq for CriticalSection {}
 
 impl CriticalSection {
     pub fn new() -> Self {
-        let mut inner = Arc::new(CRIT_ZEROED);
-        let ptr = Arc::make_mut(&mut inner) as *mut CRITICAL_SECTION;
+        let inner = Arc::new(POISONABLE_ZEROED);
+        let ptr = &inner.critical as *const _ as *mut CRITICAL_SECTION;
         // Safety: ptr is to a brand new CRITICAL_SECTION object that
         // will not be moved in memory. Might panic.
         unsafe {
@@ -41,8 +41,8 @@ impl CriticalSection {
         Self { inner }
     }
     pub fn with_spin_count(spin_count: u32) -> Self {
-        let mut inner = Arc::new(CRIT_ZEROED);
-        let ptr = Arc::make_mut(&mut inner) as *mut CRITICAL_SECTION;
+        let inner = Arc::new(POISONABLE_ZEROED);
+        let ptr = &inner.critical as *const _ as *mut CRITICAL_SECTION;
         // Safety: Never fails, and ptr is to a brand new
         // CRITICAL_SECTION object that will not be moved in memory.
         unsafe {
@@ -52,19 +52,19 @@ impl CriticalSection {
     }
     #[allow(non_snake_case)]
     fn lpCriticalSection(&self) -> *mut CRITICAL_SECTION {
-        &*self.inner as *const CRITICAL_SECTION as *mut _
+        self.inner.critical.get()
     }
     pub fn enter<'c>(&'c self) -> EnteredCritical<'c> {
         // Safety: might panic, no return value. Naturally thread-safe.
         unsafe { enter_cs(self.lpCriticalSection()) }
-        EnteredCritical::new(&*self.inner)
+        EnteredCritical::new(&self.inner)
     }
     pub fn try_enter<'c>(&'c self) -> Option<EnteredCritical<'c>> {
         // Safety: returns non-zero if we are in critical section when call returns.
         // Naturally thread-safe.
         match unsafe { try_enter_cs(self.lpCriticalSection()) } {
             0 => None,
-            _ => Some(EnteredCritical::new(&*self.inner)),
+            _ => Some(EnteredCritical::new(&self.inner)),
         }
     }
     pub fn set_spin_count(&self, spin_count: u32) -> u32 {
@@ -131,6 +131,7 @@ mod tests {
             }
         }
         assert_eq!(98, unsafe { X });
+        assert!(critical.enter().is_poisoned());
     }
 
     #[test]
