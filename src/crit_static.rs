@@ -9,7 +9,7 @@ use crate::common::{PoisonableCriticalSection, POISONABLE_ZEROED};
 use crate::EnteredCritical;
 
 use crate::wrapper::{
-    delete_cs, enter_cs, init_cs, init_cs_with_spin_count, set_cs_spin_count, try_enter_cs,
+    /* delete_cs, */ enter_cs, init_cs, init_cs_with_spin_count, set_cs_spin_count, try_enter_cs,
 };
 
 use winapi::um::minwinbase::CRITICAL_SECTION;
@@ -45,7 +45,9 @@ pub struct CriticalStatic {
 pub struct CriticalStaticRef<State>(&'static PoisonableCriticalSection, State);
 #[derive(Copy, Clone)]
 pub struct Init;
-pub struct Uninit;
+// For now, all CriticalStaticRef<Uninit> is removed. Need to think about
+// Init -> Uninit -> Init flow and ensure there is a correct way to do this.
+// pub struct Uninit;
 
 // Safety: Send and Sync are safe becuase these types work with &'static CRITICAL_SECTION.
 unsafe impl Sync for CriticalStatic {}
@@ -90,13 +92,9 @@ impl CriticalStatic {
         {
             let catcher = PoisonCatcher(&self.init);
             if let Some(spin_count) = self.init_spin_count {
-                unsafe {
-                    init_cs_with_spin_count(self.lpCriticalSection(), spin_count);
-                }
+                unsafe { init_cs_with_spin_count(self.lpCriticalSection(), spin_count) }
             } else {
-                unsafe {
-                    init_cs(self.lpCriticalSection());
-                }
+                unsafe { init_cs(self.lpCriticalSection()) }
             }
             core::mem::forget(catcher);
             self.init.store(INITIALIZED, Ordering::Release);
@@ -158,22 +156,23 @@ impl CriticalStatic {
             Init,
         )
     }
-    pub unsafe fn assume_uninit(&'static self) -> CriticalStaticRef<Uninit> {
-        CriticalStaticRef(&self.inner, Uninit)
-    }
-    pub unsafe fn delete(&'static self) -> CriticalStaticRef<Uninit> {
-        delete_cs(self.lpCriticalSection());
-        self.assume_uninit()
-    }
-    pub unsafe fn init(&'static self) {
-        self.inner.clear_poison_unsynced();
-        init_cs(self.lpCriticalSection())
-    }
-    pub unsafe fn init_with_spin_count(&'static self, spin_count: u32) -> CriticalStaticRef<Init> {
-        self.inner.clear_poison_unsynced();
-        init_cs_with_spin_count(self.lpCriticalSection(), spin_count);
-        self.get_ref()
-    }
+    // Need to re-think these manual init/delete methods
+    // pub unsafe fn assume_uninit(&'static self) -> CriticalStaticRef<Uninit> {
+    //     CriticalStaticRef(&self.inner, Uninit)
+    // }
+    // pub unsafe fn delete(&'static self) -> CriticalStaticRef<Uninit> {
+    //     delete_cs(self.lpCriticalSection());
+    //     self.assume_uninit()
+    // }
+    // pub unsafe fn init(&'static self) {
+    //     self.inner.clear_poison_unsynced();
+    //     init_cs(self.lpCriticalSection())
+    // }
+    // pub unsafe fn init_with_spin_count(&'static self, spin_count: u32) -> CriticalStaticRef<Init> {
+    //     self.inner.clear_poison_unsynced();
+    //     init_cs_with_spin_count(self.lpCriticalSection(), spin_count);
+    //     self.get_ref()
+    // }
 }
 
 impl<State> CriticalStaticRef<State> {
@@ -183,32 +182,33 @@ impl<State> CriticalStaticRef<State> {
     }
 }
 
-impl CriticalStaticRef<Uninit> {
-    pub fn init(self) -> CriticalStaticRef<Init> {
-        unsafe {
-            self.0.clear_poison_unsynced();
-            init_cs(self.lpCriticalSection());
-        }
-        CriticalStaticRef(self.0, Init)
-    }
-    pub fn init_with_spin_count(self, spin_count: u32) -> CriticalStaticRef<Init> {
-        unsafe {
-            self.0.clear_poison_unsynced();
-            init_cs_with_spin_count(self.lpCriticalSection(), spin_count);
-        }
-        CriticalStaticRef(self.0, Init)
-    }
-}
+// Need to re-think this
+// impl CriticalStaticRef<Uninit> {
+//     pub fn init(self) -> CriticalStaticRef<Init> {
+//         unsafe {
+//             self.0.clear_poison_unsynced();
+//             init_cs(self.lpCriticalSection());
+//         }
+//         CriticalStaticRef(self.0, Init)
+//     }
+//     pub fn init_with_spin_count(self, spin_count: u32) -> CriticalStaticRef<Init> {
+//         unsafe {
+//             self.0.clear_poison_unsynced();
+//             init_cs_with_spin_count(self.lpCriticalSection(), spin_count);
+//         }
+//         CriticalStaticRef(self.0, Init)
+//     }
+// }
 
 impl CriticalStaticRef<Init> {
-    pub fn enter(&self) -> EnteredCritical<'static> {
+    pub fn enter(self) -> EnteredCritical<'static> {
         // Safety: might panic, no return value. Naturally thread-safe.
         unsafe {
             enter_cs(self.lpCriticalSection());
             EnteredCritical::new(self.0)
         }
     }
-    pub fn try_enter(&self) -> Option<EnteredCritical> {
+    pub fn try_enter(self) -> Option<EnteredCritical<'static>> {
         // Safety: returns non-zero if we are in critical section when call returns.
         // Naturally thread-safe.
         unsafe {
@@ -218,14 +218,14 @@ impl CriticalStaticRef<Init> {
             }
         }
     }
-    pub fn set_spin_count(&self, spin_count: u32) -> u32 {
+    pub fn set_spin_count(self, spin_count: u32) -> u32 {
         // Safety: cannot fail. Returns previous spin_count. Naturally thread-safe.
         unsafe { set_cs_spin_count(self.lpCriticalSection(), spin_count) }
     }
-    pub unsafe fn delete(self) -> CriticalStaticRef<Uninit> {
-        delete_cs(self.lpCriticalSection());
-        CriticalStaticRef(self.0, Uninit)
-    }
+    // pub unsafe fn delete(self) -> CriticalStaticRef<Uninit> {
+    //     delete_cs(self.lpCriticalSection());
+    //     CriticalStaticRef(self.0, Uninit)
+    // }
 }
 
 #[cfg(test)]

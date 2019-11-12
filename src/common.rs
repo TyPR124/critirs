@@ -20,11 +20,11 @@ pub(crate) struct PoisonableCriticalSection {
     poison: UnsafeCell<bool>,
 }
 
-impl PoisonableCriticalSection {
-    pub(crate) unsafe fn clear_poison_unsynced(&self) {
-        self.poison.get().write(false)
-    }
-}
+// impl PoisonableCriticalSection {
+//     pub(crate) unsafe fn clear_poison_unsynced(&self) {
+//         self.poison.get().write(false)
+//     }
+// }
 
 pub(crate) const POISONABLE_ZEROED: PoisonableCriticalSection = PoisonableCriticalSection {
     critical: UnsafeCell::new(CRIT_ZEROED),
