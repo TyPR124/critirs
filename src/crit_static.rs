@@ -19,6 +19,7 @@ use core::sync::atomic::{AtomicUsize, Ordering};
 const UNINITIALIZED: usize = 0;
 const INITIALIZING: usize = 1;
 const INITIALIZED: usize = 2;
+const POISONED: usize = 3;
 
 /// CriticalStatic is a CriticalStatic primitive that can be contructed statically and safely used.
 /// Deleting a CriticalStatic is unsafe, and you must either ensure it gets re-initialized prior to
@@ -69,6 +70,12 @@ impl CriticalStatic {
         }
     }
     fn init_once(&'static self) {
+        struct PoisonCatcher<'a>(&'a AtomicUsize);
+        impl Drop for PoisonCatcher<'_> {
+            fn drop(&mut self) {
+                self.0.store(POISONED, Ordering::Relaxed)
+            }
+        }
         if INITIALIZED == self.init.load(Ordering::Acquire) {
             return;
         } else if self
@@ -81,6 +88,7 @@ impl CriticalStatic {
             )
             .is_ok()
         {
+            let catcher = PoisonCatcher(&self.init);
             if let Some(spin_count) = self.init_spin_count {
                 unsafe {
                     init_cs_with_spin_count(self.lpCriticalSection(), spin_count);
@@ -90,12 +98,19 @@ impl CriticalStatic {
                     init_cs(self.lpCriticalSection());
                 }
             }
+            core::mem::forget(catcher);
             self.init.store(INITIALIZED, Ordering::Release);
             return;
         } else {
             // It won't take long, just spin
-            while INITIALIZED != self.init.load(Ordering::Acquire) {}
-            return;
+            loop {
+                let status = self.init.load(Ordering::Acquire);
+                if INITIALIZED == status {
+                    return;
+                } else if POISONED == status {
+                    panic!("Critical Section init failed")
+                }
+            }
         }
     }
     #[allow(non_snake_case)]
