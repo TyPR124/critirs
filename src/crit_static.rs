@@ -203,15 +203,19 @@ impl CriticalStaticRef<Uninit> {
 impl CriticalStaticRef<Init> {
     pub fn enter(&self) -> EnteredCritical<'static> {
         // Safety: might panic, no return value. Naturally thread-safe.
-        unsafe { enter_cs(self.lpCriticalSection()) }
-        EnteredCritical::new(self.0)
+        unsafe {
+            enter_cs(self.lpCriticalSection());
+            EnteredCritical::new(self.0)
+        }
     }
     pub fn try_enter(&self) -> Option<EnteredCritical> {
         // Safety: returns non-zero if we are in critical section when call returns.
         // Naturally thread-safe.
-        match unsafe { try_enter_cs(self.lpCriticalSection()) } {
-            0 => None,
-            _ => Some(EnteredCritical::new(self.0)),
+        unsafe {
+            match try_enter_cs(self.lpCriticalSection()) {
+                0 => None,
+                _ => Some(EnteredCritical::new(self.0)),
+            }
         }
     }
     pub fn set_spin_count(&self, spin_count: u32) -> u32 {

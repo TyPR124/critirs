@@ -37,7 +37,7 @@ pub struct EnteredCritical<'c>(&'c PoisonableCriticalSection);
 assert_not_impl_all!(EnteredCritical: Send, Sync, Copy, Clone);
 
 impl<'c> EnteredCritical<'c> {
-    pub(crate) fn new(ptr: &'c PoisonableCriticalSection) -> Self {
+    pub(crate) unsafe fn new(ptr: &'c PoisonableCriticalSection) -> Self {
         Self(ptr)
     }
 }

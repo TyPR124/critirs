@@ -1,5 +1,7 @@
 # Safety Considerations by Function
 
+This lists safety considerations relevant to the functions provided by the Windows API.
+
 ## InitializeCriticalSection
 
 [Exceptions](#Exceptions)
@@ -53,6 +55,8 @@
 [Memory Management](#Memory%20Management)
 
 # Safety Considerations
+
+This seciton details safety problems and solutions employed.
 
 ## Exceptions
 
@@ -112,9 +116,7 @@ If a thread terminates while it has entered a critical section, the state of the
 
 A Rust thread may terminate early via panic. Panic may either unwind the stack while other threads continue to run, or abort the program and all threads. Therefore, we are only concerned with the unwinding panic.
 
-The EnteredSection returned from all successful Enter or TryEnter calls automatically calls Leave. It will get dropped during unwind, ensuring no thread terminates without leaving the critical section.
-
-TODO: Track poisoning of CriticalSection, CriticalStatic + remember CriticalStatus is susceptable to poison in init_once.
+The EnteredSection returned from all successful Enter or TryEnter calls automatically calls Leave. It will get dropped during unwind, ensuring no thread terminates without leaving the critical section. It set a poison flag which future callers can check.
 
 ## Deletion
 

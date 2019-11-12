@@ -35,9 +35,7 @@ impl CriticalSection {
         let ptr = &inner.critical as *const _ as *mut CRITICAL_SECTION;
         // Safety: ptr is to a brand new CRITICAL_SECTION object that
         // will not be moved in memory. Might panic.
-        unsafe {
-            init_cs(ptr);
-        }
+        unsafe { init_cs(ptr) }
         Self { inner }
     }
     pub fn with_spin_count(spin_count: u32) -> Self {
@@ -45,9 +43,7 @@ impl CriticalSection {
         let ptr = &inner.critical as *const _ as *mut CRITICAL_SECTION;
         // Safety: Never fails, and ptr is to a brand new
         // CRITICAL_SECTION object that will not be moved in memory.
-        unsafe {
-            init_cs_with_spin_count(ptr, spin_count);
-        }
+        unsafe { init_cs_with_spin_count(ptr, spin_count) }
         Self { inner }
     }
     #[allow(non_snake_case)]
@@ -56,15 +52,19 @@ impl CriticalSection {
     }
     pub fn enter<'c>(&'c self) -> EnteredCritical<'c> {
         // Safety: might panic, no return value. Naturally thread-safe.
-        unsafe { enter_cs(self.lpCriticalSection()) }
-        EnteredCritical::new(&self.inner)
+        unsafe {
+            enter_cs(self.lpCriticalSection());
+            EnteredCritical::new(&self.inner)
+        }
     }
     pub fn try_enter<'c>(&'c self) -> Option<EnteredCritical<'c>> {
         // Safety: returns non-zero if we are in critical section when call returns.
         // Naturally thread-safe.
-        match unsafe { try_enter_cs(self.lpCriticalSection()) } {
-            0 => None,
-            _ => Some(EnteredCritical::new(&self.inner)),
+        unsafe {
+            match try_enter_cs(self.lpCriticalSection()) {
+                0 => None,
+                _ => Some(EnteredCritical::new(&self.inner)),
+            }
         }
     }
     pub fn set_spin_count(&self, spin_count: u32) -> u32 {
@@ -78,9 +78,7 @@ impl Drop for CriticalSection {
         if Arc::strong_count(&self.inner) == 1 {
             // Safety: we have exclusive access by knowing strong count is one in drop,
             // we never created any weak refs, and FFI call never fails
-            unsafe {
-                delete_cs(self.lpCriticalSection());
-            }
+            unsafe { delete_cs(self.lpCriticalSection()) }
         }
     }
 }
