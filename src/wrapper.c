@@ -1,15 +1,14 @@
 #include <Windows.h>
 
-extern "C"
-{
 	DWORD _c_init_cs(LPCRITICAL_SECTION lpCriticalSection)
 	{
-		try
+		
+		__try
 		{
 			InitializeCriticalSection(lpCriticalSection);
 			return 1;
 		}
-		catch (...)
+		__except(EXCEPTION_EXECUTE_HANDLER)
 		{
 			return 0;
 		}
@@ -20,12 +19,12 @@ extern "C"
 	}
 	DWORD _c_enter_cs(LPCRITICAL_SECTION lpCriticalSection)
 	{
-		try
+		__try
 		{
 			EnterCriticalSection(lpCriticalSection);
 			return 1;
 		}
-		catch (...)
+		__except(EXCEPTION_EXECUTE_HANDLER)
 		{
 			return 0;
 		}
@@ -46,4 +45,3 @@ extern "C"
 	{
 		return SetCriticalSectionSpinCount(lpCriticalSection, spin_count);
 	}
-}

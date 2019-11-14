@@ -1,6 +1,5 @@
 fn main() {
     cc::Build::new()
-        .cpp(true)
-        .file("src/wrapper.cpp")
+        .file("src/wrapper.c")
         .compile("wrapper");
 }

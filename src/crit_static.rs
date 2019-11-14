@@ -9,7 +9,8 @@ use crate::common::{PoisonableCriticalSection, POISONABLE_ZEROED};
 use crate::EnteredCritical;
 
 use crate::wrapper::{
-    /* delete_cs, */ enter_cs, init_cs, init_cs_with_spin_count, set_cs_spin_count, try_enter_cs,
+    /* delete_cs, */ enter_cs, init_cs, init_cs_with_spin_count, set_cs_spin_count,
+    try_enter_cs,
 };
 
 use winapi::um::minwinbase::CRITICAL_SECTION;
